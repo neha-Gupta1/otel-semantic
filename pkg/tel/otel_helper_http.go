@@ -33,14 +33,10 @@ func InitTracerHTTP() *sdktrace.TracerProvider {
 		otlptracehttp.WithEndpoint(OTEL_OTLP_HTTP_ENDPOINT),
 		otlptracehttp.WithURLPath("/api/default/v1/traces"),
 		otlptracehttp.WithHeaders(map[string]string{
-			"Authorization": "Basic cm9vdEBleGFtcGxlLmNvbTpTTUYweWJkNG9BRjFzbVpm",
+			// update this with your API key or default username and password for OpenObserve
+			"Authorization": "Basic cm9vdEBleGFtcGxlLmNvbTpDb21wbGV4cGFzcyMxMjMK",
 		}),
 	)
-
-	// stdExporter, _ := stdouttrace.New(
-	// 	stdouttrace.WithWriter(io.Writer(os.Stdout)),
-	// 	stdouttrace.WithPrettyPrint(),
-	// )
 
 	if err != nil {
 		fmt.Println("Error creating HTTP OTLP exporter: ", err)
