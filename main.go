@@ -8,13 +8,23 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/zinclabs/otel-example/models"
+	"github.com/zinclabs/otel-example/pkg/tel"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.opentelemetry.io/contrib/instrumentation/github.com/gin-gonic/gin/otelgin"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func main() {
+	tp := tel.InitTracerHTTP()
+	defer func() {
+		if err := tp.Shutdown(context.Background()); err != nil {
+			fmt.Println("Error shutting down tracer provider: ", err)
+		}
+	}()
+
 	router := gin.Default()
 
 	router.Use(otelgin.Middleware(""))
@@ -27,8 +37,28 @@ func main() {
 }
 
 func GetUser(c *gin.Context) {
-	details, err := GetUserDetails(c.Request.Context())
+	span := trace.SpanFromContext(c.Request.Context())
+	ctx := trace.ContextWithSpan(c.Request.Context(), span)
+
+	defer span.End()
+
+	// error.type - the error with which the operation ended
+	// http.response.status_code - since we have a server setup, this is to be setup only in case of error.
+
+	// Set custom HTTP semantic attributes
+	span.SetAttributes(
+		attribute.String("http.request.method", c.Request.Method),
+		attribute.String("url.path", c.Request.URL.String()),
+		attribute.String("http.query", c.Request.URL.RawQuery),
+		attribute.String("http.scheme", c.Request.URL.Scheme),
+	)
+
+	details, err := GetUserDetails(ctx)
 	if err != nil {
+		span.SetAttributes(
+			attribute.String("error.type", err.Error()),
+			attribute.Int("http.response.status_code", http.StatusInternalServerError))
+
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error fetching user details)"})
 	}
 
@@ -70,13 +100,25 @@ func GetUserDetails(ctx context.Context) ([]models.User, error) {
 }
 
 func PostUser(c *gin.Context) {
+	span := trace.SpanFromContext(c.Request.Context())
+	ctx := trace.ContextWithSpan(c.Request.Context(), span)
+
+	defer span.End()
+
+	// Set custom HTTP semantic attributes
+	span.SetAttributes(
+		attribute.String("http.request.method", c.Request.Method),
+		attribute.String("url.path", c.Request.URL.String()),
+		attribute.String("http.query", c.Request.URL.RawQuery),
+		attribute.String("http.scheme", c.Request.URL.Scheme),
+	)
 	user := models.User{}
 	if err := c.ShouldBindJSON(&user); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	details, err := PostUserDetails(c.Request.Context(), user)
+	details, err := PostUserDetails(ctx, user)
 	if err != nil {
 		log.Println("Error posting user details: ", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error posting user details"})
