@@ -45,6 +45,7 @@ func GetUser(c *gin.Context) {
 	// error.type - the error with which the operation ended
 	// http.response.status_code - since we have a server setup, this is to be setup only in case of error.
 
+	span.SetName("get_user")
 	// Set custom HTTP semantic attributes
 	span.SetAttributes(
 		attribute.String("http.request.method", c.Request.Method),
@@ -53,7 +54,7 @@ func GetUser(c *gin.Context) {
 		attribute.String("http.scheme", c.Request.URL.Scheme),
 	)
 
-	details, err := GetUserDetails(ctx)
+	details, err := GetUserDetails(ctx, span)
 	if err != nil {
 		span.SetAttributes(
 			attribute.String("error.type", err.Error()),
@@ -68,16 +69,23 @@ func GetUser(c *gin.Context) {
 	})
 }
 
-func GetUserDetails(ctx context.Context) ([]models.User, error) {
+func GetUserDetails(ctx context.Context, span trace.Span) ([]models.User, error) {
 	var (
 		user []models.User
 		cur  *mongo.Cursor
 	)
 
-	client, err := createCon(ctx)
+	client, err := createCon(ctx, span)
 	if err != nil {
 		return user, err
 	}
+
+	span.SetAttributes(
+		attribute.String("db.collection.name", models.UsersCol),
+		attribute.String("db.namespace", "db"),
+		attribute.String("db.query.text", "{}"),
+		attribute.String("db.operation.name", "findAll"),
+	)
 
 	coll := client.Database("db").Collection(models.UsersCol)
 	cur, err = coll.Find(ctx, bson.M{})
@@ -105,6 +113,7 @@ func PostUser(c *gin.Context) {
 
 	defer span.End()
 
+	span.SetName("post_user")
 	// Set custom HTTP semantic attributes
 	span.SetAttributes(
 		attribute.String("http.request.method", c.Request.Method),
@@ -112,13 +121,14 @@ func PostUser(c *gin.Context) {
 		attribute.String("http.query", c.Request.URL.RawQuery),
 		attribute.String("http.scheme", c.Request.URL.Scheme),
 	)
+
 	user := models.User{}
 	if err := c.ShouldBindJSON(&user); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	details, err := PostUserDetails(ctx, user)
+	details, err := PostUserDetails(ctx, span, user)
 	if err != nil {
 		log.Println("Error posting user details: ", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Error posting user details"})
@@ -130,12 +140,18 @@ func PostUser(c *gin.Context) {
 	})
 }
 
-func PostUserDetails(ctx context.Context, user models.User) (models.User, error) {
-	client, err := createCon(ctx)
+func PostUserDetails(ctx context.Context, span trace.Span, user models.User) (models.User, error) {
+	client, err := createCon(ctx, span)
 	if err != nil {
 		log.Println("Error connecting to MongoDB: ", err)
 		return user, err
 	}
+
+	span.SetAttributes(
+		attribute.String("db.collection.name", models.UsersCol),
+		attribute.String("db.namespace", "db"),
+		attribute.String("db.operation.name", "InsertOne"),
+	)
 
 	coll := client.Database("db").Collection(models.UsersCol)
 	_, err = coll.InsertOne(ctx, &user)
@@ -147,8 +163,19 @@ func PostUserDetails(ctx context.Context, user models.User) (models.User, error)
 	return user, err
 }
 
-func createCon(ctx context.Context) (client *mongo.Client, err error) {
-	client, err = mongo.Connect(ctx, options.Client().ApplyURI("mongodb://root:example@localhost:27017"))
+func createCon(ctx context.Context, span trace.Span) (client *mongo.Client, err error) {
+	// error.type
+	serverAddress := "localhost"
+	serverPort := "27017"
+	database := "mongodb"
+
+	span.SetAttributes(
+		attribute.String("db.system", database),
+		attribute.String("server.address", serverAddress),
+		attribute.String("server.port", serverPort),
+	)
+
+	client, err = mongo.Connect(ctx, options.Client().ApplyURI(fmt.Sprintf("%s://root:example@%s:%s", database, serverAddress, serverPort)))
 	if err != nil {
 		return nil, err
 	}

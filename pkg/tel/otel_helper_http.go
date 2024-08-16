@@ -45,7 +45,7 @@ func InitTracerHTTP() *sdktrace.TracerProvider {
 	res := resource.NewWithAttributes(
 		semconv.SchemaURL,
 		// the service name used to display traces in backends
-		semconv.ServiceNameKey.String("otel1-gin-gonic"),
+		semconv.ServiceNameKey.String("user-info"),
 		semconv.ServiceVersionKey.String("0.0.1"),
 		attribute.String("environment", "test"),
 	)

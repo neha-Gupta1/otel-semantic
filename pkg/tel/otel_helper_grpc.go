@@ -26,12 +26,12 @@ func InitTracerGRPC() *sdktrace.TracerProvider {
 
 	otlpGRPCExporter, err := otlptracegrpc.New(context.TODO(),
 		otlptracegrpc.WithInsecure(), // use http & not https
-		otlptracegrpc.WithEndpoint("127.0.0.1:5081"),		
+		otlptracegrpc.WithEndpoint("127.0.0.1:5081"),
 		//otlptracegrpc.w ("/api/prabhat-org2/traces"),
 		otlptracegrpc.WithHeaders(map[string]string{
 			"Authorization": "Basic YWRtaW46Q29tcGxleHBhc3MjMTIz",
 			//"Authorization": "Bearer some-auth-token",
-			"zinc-org-id":"org1",
+			"zinc-org-id": "org1",
 		}),
 	)
 
@@ -42,7 +42,7 @@ func InitTracerGRPC() *sdktrace.TracerProvider {
 	res := resource.NewWithAttributes(
 		semconv.SchemaURL,
 		// the service name used to display traces in backends
-		semconv.ServiceNameKey.String("otel1-gin-gonic"),
+		semconv.ServiceNameKey.String("user-info"),
 	)
 
 	tp := sdktrace.NewTracerProvider(
